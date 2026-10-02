@@ -1,0 +1,16 @@
+[repo]
+name = "bitty-plugin-manager"
+kind = "tooling"
+lang = "rust"
+role = "candidate external plugin package manager; metadata-only scaffold"
+owner = "bitty-plugins"
+docs = "bitty-plugins-docs"
+
+[bootstrap]
+version = "0.0.1"
+edition = "2024"
+rust_version = "1.85"
+status = "metadata-only"
+
+[contracts]
+status = "pending W-72; no implemented API"

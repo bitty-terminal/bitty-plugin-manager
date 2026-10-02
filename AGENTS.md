@@ -1,0 +1,5 @@
+# Plugin manager repository guidance
+
+Metadata-only scaffold; no package code migration authorized. Read TODO, repo.toml, CarryCtx, DIR-016/DIR-017/DIR-030 and accepted plugin packaging/security contracts. Core startup still independently checks installed integrity, compatibility and grants. Installation executes no package code; preserve transactional activation, rollback, checksum/signature policy and grant review.
+
+English only; derive paths/URLs/host values from parameters or metadata. Rust starts 0.0.1, edition 2024, Core MSRV. Run just gates; scaffold checks are not package safety evidence. CTX-0001 -> 0002 -> 0003 -> 0004 orders bootstrap/contracts/implementation/independent verification. Named sessions, narrow scopes, managed hooks and task worktrees after first commit. Direct bootstrap authorized; no self-acceptance. No commit/push/release without authority; redacted snapshots only. Preserve unrelated work, no silent installs/destructive cleanup/unowned process kills. Require negative supply-chain and recovery tests and canonical docs synchronization.
