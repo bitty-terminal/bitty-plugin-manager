@@ -44,12 +44,24 @@ actionlint:
     @installed="$(actionlint --version | head -n 1)"; test "$installed" = "{{actionlint_version}}" || { echo "actionlint {{actionlint_version}} required; found $installed" >&2; exit 1; }
     actionlint -color -shellcheck=
 
+rust-fmt:
+    cargo fmt --all -- --check
+
+rust-clippy:
+    cargo clippy --all-targets -- -D warnings
+
+rust-test:
+    cargo test
+
+rust: rust-fmt rust-clippy rust-test
+
 check:
     just fmt-check
     just markdownlint
     just metadata
     just hygiene
     just paths
+    just rust
 
 workflows:
     actionlint
@@ -68,8 +80,3 @@ workflow-publish:
 workflow-import:
     git fetch origin refs/heads/carryctx-snapshots:refs/remotes/origin/carryctx-snapshots
     carryctx import --from-git refs/remotes/origin/carryctx-snapshots
-
-# No source exists: fail rather than claim product verification.
-product:
-    @echo 'Blocked: approved source and product gates have not landed.' >&2
-    @exit 1

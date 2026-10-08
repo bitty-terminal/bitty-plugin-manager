@@ -1,0 +1,31 @@
+# bitty-plugin-manager: candidate external plugin package manager.
+#
+# Slice 1 (this change, issue #9): downstream Lua-plugin fleet only —
+# validated git checkouts under a plugins directory (install / update /
+# rollback). Zero dependencies by design: the threat model for an installer
+# starts with its own supply chain, so the standard library plus the system
+# git binary is the whole runtime. Upstream R2 prebuilt components, the
+# registry index with version solving, and seed bootstrap stay deferred
+# (tracked follow-ups; see README).
+
+[package]
+name = "bitty-plugin-manager"
+version = "0.0.1"
+edition = "2024"
+rust-version = "1.85"
+description = "Candidate external package manager for Bitty plugins (downstream git-checkout fleet)"
+license = "MIT"
+repository = "https://github.com/bitty-terminal/bitty-plugin-manager"
+keywords = ["bitty", "plugins", "package-manager"]
+categories = ["command-line-utilities"]
+
+[lib]
+name = "bitty_plugin_manager"
+path = "src/lib.rs"
+
+[[bin]]
+name = "bitty-plugin-manager"
+path = "src/main.rs"
+
+[profile.release]
+strip = true
