@@ -88,7 +88,14 @@ impl Receipt {
 
     /// Write the receipt into a plugin directory (verified checkout first).
     pub fn write_to(&self, plugin_dir: &Path) -> Result<(), Error> {
-        std::fs::write(Self::path_for(plugin_dir), self.render())?;
+        use std::io::Write;
+        let tmp = plugin_dir.join(format!("{RECEIPT_FILE}.tmp"));
+        {
+            let mut file = std::fs::File::create(&tmp)?;
+            file.write_all(self.render().as_bytes())?;
+            file.sync_all()?;
+        }
+        std::fs::rename(&tmp, Self::path_for(plugin_dir))?;
         Ok(())
     }
 

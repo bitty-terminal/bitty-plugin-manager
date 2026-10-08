@@ -55,7 +55,20 @@ impl Default for SystemGit {
 
 impl GitRunner for SystemGit {
     fn run(&self, argv: &[&str], cwd: &Path) -> Result<GitOutput, Error> {
-        let output = Command::new(&self.program)
+        let mut cmd = Command::new(&self.program);
+        for var in [
+            "GIT_DIR",
+            "GIT_WORK_TREE",
+            "GIT_INDEX_FILE",
+            "GIT_OBJECT_DIRECTORY",
+            "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+            "GIT_COMMON_DIR",
+            "GIT_NAMESPACE",
+            "GIT_CEILING_DIRECTORIES",
+        ] {
+            cmd.env_remove(var);
+        }
+        let output = cmd
             .arg("-c")
             .arg("core.hooksPath=/dev/null")
             .args(argv)
@@ -65,9 +78,23 @@ impl GitRunner for SystemGit {
             .map_err(|err| Error::new(ErrorKind::Git, format!("cannot start git: {err}")))?;
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            let mut clipped = stderr.trim().to_string();
+            let mut clipped: String = stderr
+                .trim()
+                .chars()
+                .map(|c| {
+                    if c.is_control() && c != '\n' && c != '\t' {
+                        '?'
+                    } else {
+                        c
+                    }
+                })
+                .collect();
             if clipped.len() > MAX_STDERR_BYTES {
-                clipped.truncate(MAX_STDERR_BYTES);
+                let mut cut = MAX_STDERR_BYTES;
+                while !clipped.is_char_boundary(cut) {
+                    cut -= 1;
+                }
+                clipped.truncate(cut);
             }
             return Err(Error::new(
                 ErrorKind::Git,

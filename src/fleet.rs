@@ -172,16 +172,25 @@ impl<G: GitRunner> Fleet<G> {
         let plugin_dir = self.plugin_dir(name);
         let receipt = Receipt::read_from(&plugin_dir)?;
         let back = receipt.rolled_back()?;
-        self.checkout_and_verify(&plugin_dir, back.rev())?;
-        let head = self.head(&plugin_dir)?;
-        if !back.rev().matches_full(head.as_str()) {
-            return Err(Error::new(
-                ErrorKind::Git,
-                format!("rollback of {name} verified against an unexpected HEAD"),
-            ));
+        let current = receipt.rev().as_str().to_string();
+        let result = self
+            .checkout_and_verify(&plugin_dir, back.rev())
+            .and_then(|()| {
+                let head = self.head(&plugin_dir)?;
+                if !back.rev().matches_full(head.as_str()) {
+                    return Err(Error::new(
+                        ErrorKind::Git,
+                        format!("rollback of {name} verified against an unexpected HEAD"),
+                    ));
+                }
+                back.write_to(&plugin_dir)
+            });
+        if result.is_err() {
+            // Best effort: leave the tree where it was before reporting, so
+            // the receipt describes the bits again.
+            let _ = self.git.run(&["checkout", current.as_str()], &plugin_dir);
         }
-        back.write_to(&plugin_dir)?;
-        Ok(())
+        result
     }
 
     fn checkout_and_verify(&self, cwd: &Path, rev: &GitRev) -> Result<(), Error> {
