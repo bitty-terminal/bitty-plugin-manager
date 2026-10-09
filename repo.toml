@@ -2,7 +2,7 @@
 name = "bitty-plugin-manager"
 kind = "tooling"
 lang = "rust"
-role = "candidate external plugin package manager; metadata-only scaffold"
+role = "candidate external plugin package manager; downstream git-checkout fleet implemented"
 owner = "bitty-plugins"
 docs = "bitty-plugins-docs"
 
@@ -10,7 +10,7 @@ docs = "bitty-plugins-docs"
 version = "0.0.1"
 edition = "2024"
 rust_version = "1.85"
-status = "metadata-only"
+status = "downstream-fleet"
 
 [contracts]
-status = "pending W-72; no implemented API"
+status = "downstream git-checkout fleet implemented (issue #9 slice 1); upstream R2, registry solving, and seed installability pending"
