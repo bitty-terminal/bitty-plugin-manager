@@ -89,20 +89,55 @@ impl Receipt {
     /// Write the receipt into a plugin directory (verified checkout first).
     pub fn write_to(&self, plugin_dir: &Path) -> Result<(), Error> {
         use std::io::Write;
+        let dir_meta = std::fs::symlink_metadata(plugin_dir)?;
+        if dir_meta.file_type().is_symlink() || !dir_meta.file_type().is_dir() {
+            return Err(Error::new(
+                ErrorKind::Receipt,
+                "plugin directory must be a real directory, not a symlink",
+            ));
+        }
+        let dst = Self::path_for(plugin_dir);
+        match std::fs::symlink_metadata(&dst) {
+            Ok(meta) if meta.file_type().is_symlink() || !meta.file_type().is_file() => {
+                return Err(Error::new(
+                    ErrorKind::Receipt,
+                    "refusing to write receipt over symlink or non-file .bitty-manager",
+                ));
+            }
+            Ok(_) => {}
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+            Err(err) => return Err(Error::from(err)),
+        }
         let tmp = plugin_dir.join(format!("{RECEIPT_FILE}.tmp"));
+        match std::fs::symlink_metadata(&tmp) {
+            Ok(meta) if meta.file_type().is_symlink() || !meta.file_type().is_file() => {
+                return Err(Error::new(
+                    ErrorKind::Receipt,
+                    "refusing to write receipt: .bitty-manager.tmp is a symlink or non-file",
+                ));
+            }
+            Ok(_) => {
+                std::fs::remove_file(&tmp)?;
+            }
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+            Err(err) => return Err(Error::from(err)),
+        }
         {
-            let mut file = std::fs::File::create(&tmp)?;
+            let mut file = std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&tmp)?;
             file.write_all(self.render().as_bytes())?;
             file.sync_all()?;
         }
-        std::fs::rename(&tmp, Self::path_for(plugin_dir))?;
+        std::fs::rename(&tmp, dst)?;
         Ok(())
     }
 
     /// Read and strictly validate a receipt. Unknown keys, missing keys,
     /// extra lines, or values that no longer validate all fail closed.
     pub fn read_from(plugin_dir: &Path) -> Result<Self, Error> {
-        let text = std::fs::read_to_string(Self::path_for(plugin_dir)).map_err(|err| {
+        let dir_meta = std::fs::symlink_metadata(plugin_dir).map_err(|err| {
             if err.kind() == std::io::ErrorKind::NotFound {
                 Error::new(
                     ErrorKind::Receipt,
@@ -112,6 +147,30 @@ impl Receipt {
                 Error::from(err)
             }
         })?;
+        if dir_meta.file_type().is_symlink() || !dir_meta.file_type().is_dir() {
+            return Err(Error::new(
+                ErrorKind::Receipt,
+                "plugin directory must be a real directory, not a symlink",
+            ));
+        }
+        let receipt_path = Self::path_for(plugin_dir);
+        let receipt_meta = std::fs::symlink_metadata(&receipt_path).map_err(|err| {
+            if err.kind() == std::io::ErrorKind::NotFound {
+                Error::new(
+                    ErrorKind::Receipt,
+                    "no install receipt: directory was not installed by this manager",
+                )
+            } else {
+                Error::from(err)
+            }
+        })?;
+        if receipt_meta.file_type().is_symlink() || !receipt_meta.file_type().is_file() {
+            return Err(Error::new(
+                ErrorKind::Receipt,
+                "install receipt must be a regular file, not a symlink",
+            ));
+        }
+        let text = std::fs::read_to_string(&receipt_path)?;
         Self::parse(&text)
     }
 
@@ -233,6 +292,45 @@ mod tests {
         std::fs::create_dir_all(&dir).expect("probe dir");
         let err = Receipt::read_from(&dir).expect_err("no receipt");
         assert_eq!(err.kind(), ErrorKind::Receipt);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn write_and_read_reject_symlinks() {
+        use std::os::unix::fs::symlink;
+
+        let dir = std::env::temp_dir().join("bitty-manager-symlink-probe");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("probe dir");
+        let victim = dir.join("victim.txt");
+        std::fs::write(&victim, "keep-me\n").expect("victim");
+
+        let plugin_dir = dir.join("palette");
+        std::fs::create_dir_all(&plugin_dir).expect("plugin dir");
+        symlink(&victim, plugin_dir.join(".bitty-manager.tmp")).expect("tmp symlink");
+
+        let (source, rev) = sample();
+        let receipt = Receipt::fresh(&source, &rev);
+        let err = receipt
+            .write_to(&plugin_dir)
+            .expect_err("must reject .bitty-manager.tmp symlink");
+        assert_eq!(err.kind(), ErrorKind::Receipt);
+        assert_eq!(
+            std::fs::read_to_string(&victim).expect("victim intact"),
+            "keep-me\n"
+        );
+        std::fs::remove_file(plugin_dir.join(".bitty-manager.tmp")).expect("rm tmp symlink");
+
+        symlink(&victim, plugin_dir.join(RECEIPT_FILE)).expect("receipt symlink");
+        let err = receipt
+            .write_to(&plugin_dir)
+            .expect_err("must reject .bitty-manager symlink on write");
+        assert_eq!(err.kind(), ErrorKind::Receipt);
+        let err = Receipt::read_from(&plugin_dir)
+            .expect_err("must reject .bitty-manager symlink on read");
+        assert_eq!(err.kind(), ErrorKind::Receipt);
+
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
