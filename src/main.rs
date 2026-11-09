@@ -63,6 +63,18 @@ fn default_plugins_dir() -> Result<PathBuf, Error> {
     Ok(PathBuf::from(home).join(".local/share/bitty/plugins"))
 }
 
+fn sanitize_arg_for_error(raw: &str) -> String {
+    let mut out: String = raw
+        .chars()
+        .take(64)
+        .map(|c| if c.is_control() { '?' } else { c })
+        .collect();
+    if raw.chars().count() > 64 {
+        out.push_str("...");
+    }
+    out
+}
+
 fn run(argv: &[String]) -> Result<String, Error> {
     let mut args = argv.to_vec();
     // Global flags may precede the subcommand.
@@ -70,6 +82,12 @@ fn run(argv: &[String]) -> Result<String, Error> {
     let mut index = 0;
     while index < args.len() {
         if let Some(dir) = take_flag(&args, &mut index, "--plugins-dir")? {
+            if dir.is_empty() {
+                return Err(Error::new(
+                    ErrorKind::InvalidInput,
+                    "--plugins-dir must not be empty",
+                ));
+            }
             plugins_dir = Some(PathBuf::from(dir));
         } else {
             break;
@@ -130,7 +148,10 @@ fn run(argv: &[String]) -> Result<String, Error> {
         }
         other => Err(Error::new(
             ErrorKind::InvalidInput,
-            format!("unknown subcommand {other}; see --help"),
+            format!(
+                "unknown subcommand {}; see --help",
+                sanitize_arg_for_error(other)
+            ),
         )),
     }
 }
@@ -148,14 +169,17 @@ fn install_args(rest: &[String]) -> Result<(PluginName, PluginSource, GitRev), E
         } else if rest[index].starts_with('-') {
             return Err(Error::new(
                 ErrorKind::InvalidInput,
-                format!("unexpected flag {}", rest[index]),
+                format!("unexpected flag {}", sanitize_arg_for_error(&rest[index])),
             ));
         } else if name.is_none() {
             name = Some(rest[index].clone());
         } else {
             return Err(Error::new(
                 ErrorKind::InvalidInput,
-                format!("unexpected argument {}", rest[index]),
+                format!(
+                    "unexpected argument {}",
+                    sanitize_arg_for_error(&rest[index])
+                ),
             ));
         }
         index += 1;
@@ -180,14 +204,17 @@ fn update_args(rest: &[String]) -> Result<(PluginName, GitRev), Error> {
         } else if rest[index].starts_with('-') {
             return Err(Error::new(
                 ErrorKind::InvalidInput,
-                format!("unexpected flag {}", rest[index]),
+                format!("unexpected flag {}", sanitize_arg_for_error(&rest[index])),
             ));
         } else if name.is_none() {
             name = Some(rest[index].clone());
         } else {
             return Err(Error::new(
                 ErrorKind::InvalidInput,
-                format!("unexpected argument {}", rest[index]),
+                format!(
+                    "unexpected argument {}",
+                    sanitize_arg_for_error(&rest[index])
+                ),
             ));
         }
         index += 1;

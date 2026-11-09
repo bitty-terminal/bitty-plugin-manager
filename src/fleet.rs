@@ -81,8 +81,16 @@ impl<G: GitRunner> Fleet<G> {
     /// never silently adopted.
     pub fn installed(&self, name: &PluginName) -> Result<Option<Installed>, Error> {
         let plugin_dir = self.plugin_dir(name);
-        if !plugin_dir.exists() {
-            return Ok(None);
+        match std::fs::symlink_metadata(&plugin_dir) {
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(err) => return Err(Error::from(err)),
+            Ok(meta) if meta.file_type().is_symlink() || !meta.file_type().is_dir() => {
+                return Err(Error::new(
+                    ErrorKind::Receipt,
+                    "plugin entry must be a real directory, not a symlink or file",
+                ));
+            }
+            Ok(_) => {}
         }
         let receipt = Receipt::read_from(&plugin_dir)?;
         Ok(Some(Installed {
@@ -102,14 +110,14 @@ impl<G: GitRunner> Fleet<G> {
         rev: &GitRev,
     ) -> Result<(), Error> {
         let plugin_dir = self.plugin_dir(name);
-        if plugin_dir.exists() {
+        if std::fs::symlink_metadata(&plugin_dir).is_ok() {
             return Err(Error::new(
                 ErrorKind::State,
                 format!("{name} is already installed; update or remove it first"),
             ));
         }
         let staging = self.dir.join(format!("{STAGING_PREFIX}{name}"));
-        if staging.exists() {
+        if std::fs::symlink_metadata(&staging).is_ok() {
             return Err(Error::new(
                 ErrorKind::State,
                 format!("stale staging directory for {name}; remove it and retry"),

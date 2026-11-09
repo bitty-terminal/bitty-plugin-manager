@@ -91,6 +91,12 @@ impl PluginSource {
     }
 
     fn parse_local(input: &str) -> Result<Self, Error> {
+        if input.contains('\\') {
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                "invalid plugin source: local paths must not contain backslashes",
+            ));
+        }
         let path = Path::new(input);
         if !path.is_absolute() {
             return Err(Error::new(
@@ -200,6 +206,7 @@ mod tests {
             "./relative",
             "../escape",
             "/abs/../escape",
+            "/abs\\..\\escape",
             "https://example.com/o/r\ninjected",
             "/tmp/has\x00nul",
         ];
